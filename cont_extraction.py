@@ -383,10 +383,13 @@ def get_outline_contour(image,mp_x,mp_y,otsu=0,reparamPoints=1000,imgSaved=0):
         # This step attempts to remove horizontal lines (noise).
         newx,newy = remove_lines(img,x_,y_,mx)
 
-        return newx,newy
-
     except:
         print("failed to find contour")
+        newx = [0]
+        newy = [0]
+
+    return newx,newy
+
     
 
 def reparam(x,y,npoints):
