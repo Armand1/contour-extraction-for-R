@@ -321,62 +321,68 @@ def get_outline_contour(image,mp_x,mp_y,otsu=0,reparamPoints=1000,imgSaved=0):
     # This function extracts the outline contour of an image.
     # Default, otsu = 0, and reparamPoints = 1000.
 
-    if imgSaved == 0:
-        img = image
-    else:
-        img = io.imread(imgSaved,as_gray=True)
+    try:
 
-    totx = np.shape(img)[1]
-    toty = np.shape(img)[0]
-    
-    if otsu == 1: # If additional binarization is required.
-        thresh = threshold_otsu(img)
-        binary = img > thresh
-        cont = measure.find_contours(binary, 0.8)
-    else:
-        cont = measure.find_contours(img, 0.8)
+        if imgSaved == 0:
+            img = image
+        else:
+            img = io.imread(imgSaved,as_gray=True)
 
-    longest_c = np.argsort([len(c) for c in cont])[-10:] # To find the longest contours
-
-    inds = []      
-
-    midpointsx = []
-    midpointsy = []
-
-
-    for ind in longest_c :
-        c = cont[ind]
-        x = c[:,1]
-        y = c[:,0]
-        rngx = max(x)-min(x)
-        rngy = max(y)-min(y)
-
-        if (rngx >= totx/20) and (rngy >= toty/20):
-            inds.append(ind)
-            midpointsx.append((max(x)+min(x))/2)
-            midpointsy.append((max(y)+min(y))/2)  
-
-    # We pick the contour that has a midpoint closest to the centre of the image.
-    k = np.argmin([np.sqrt((mp_x-midpointsx[i])**2 + (mp_y-midpointsy[i])**2) for i in range(0,len(midpointsx))])
-
-    k = inds[k]
-    
-    xrng = (max(cont[k][:,1])- min(cont[k][:,1])) 
-    yrng = (max(cont[k][:,0])- min(cont[k][:,0])) 
-    
-    if (xrng<np.shape(img)[1]*0.05) or (yrng<np.shape(img)[0]*0.1):
-        k = longest_c[-1]
+        totx = np.shape(img)[1]
+        toty = np.shape(img)[0]
         
-    x_,y_ = reparam(cont[k][:,1],cont[k][:,0],reparamPoints)
-        
-    mx = 1 
-    if max([max(img[:,i]) for i in range(0,totx)]) > 100:
-        mx = 255 # Since sometimes the greyscale image will load with values between 0-255 instead of 0-1.
+        if otsu == 1: # If additional binarization is required.
+            thresh = threshold_otsu(img)
+            binary = img > thresh
+            cont = measure.find_contours(binary, 0.8)
+        else:
+            cont = measure.find_contours(img, 0.8)
 
-    # This step attempts to remove horizontal lines (noise).
-    newx,newy = remove_lines(img,x_,y_,mx)
+        longest_c = np.argsort([len(c) for c in cont])[-10:] # To find the longest contours
+
+        inds = []      
+
+        midpointsx = []
+        midpointsy = []
+
+
+        for ind in longest_c :
+            c = cont[ind]
+            x = c[:,1]
+            y = c[:,0]
+            rngx = max(x)-min(x)
+            rngy = max(y)-min(y)
+
+            if (rngx >= totx/20) and (rngy >= toty/20):
+                inds.append(ind)
+                midpointsx.append((max(x)+min(x))/2)
+                midpointsy.append((max(y)+min(y))/2)  
+
+        # We pick the contour that has a midpoint closest to the centre of the image.
+        k = np.argmin([np.sqrt((mp_x-midpointsx[i])**2 + (mp_y-midpointsy[i])**2) for i in range(0,len(midpointsx))])
+
+        k = inds[k]
+        
+        xrng = (max(cont[k][:,1])- min(cont[k][:,1])) 
+        yrng = (max(cont[k][:,0])- min(cont[k][:,0])) 
+        
+        if (xrng<np.shape(img)[1]*0.05) or (yrng<np.shape(img)[0]*0.1):
+            k = longest_c[-1]
+            
+        x_,y_ = reparam(cont[k][:,1],cont[k][:,0],reparamPoints)
+            
+        mx = 1 
+        if max([max(img[:,i]) for i in range(0,totx)]) > 100:
+            mx = 255 # Since sometimes the greyscale image will load with values between 0-255 instead of 0-1.
+
+        # This step attempts to remove horizontal lines (noise).
+        newx,newy = remove_lines(img,x_,y_,mx)
+
+        return newx,newy
+
+    except:
+        print("failed to find contour")
     
-    return newx,newy
 
 def reparam(x,y,npoints):
     # This function reparametrizes the curve to have npoints.
