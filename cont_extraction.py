@@ -45,7 +45,7 @@ import matplotlib.image as mpimg
 # FUNCTIONS FOR BINARIZATION #
 ##############################
 
-def binarize(img,white_or_black="black",blackBound=0.25,whiteBound=0.05,border=10,ellipseLeeway=15,smallDiamLeeway=0.05,largeDiamLeeway=0.15,extraFilter=0,saveImage=0,allImages=0):
+def binarize(img,white_or_black="black",blackBound=0.2,whiteBound=0.15,border=20,ellipseLeeway=15,smallDiamLeeway=0.05,largeDiamLeeway=0.45,extraFilter=0,saveImage=0,allImages=0):
 
     try:
         toty,totx = np.shape(img)
@@ -78,7 +78,12 @@ def binarize(img,white_or_black="black",blackBound=0.25,whiteBound=0.05,border=1
 
     # If at least almost half of the current image is black, then redo the initial edit.
     if prop > 0.45:
-        blackBound = blackBound+0.1
+        if prop > 0.95:
+            mn_b = min(blackBound,whiteBound)
+            whiteBound = max(blackBound,whiteBound)
+            blackBound = mn_b
+        else:
+            blackBound = blackBound+0.1
         prop,img_edit1 = init_step(img,mx,backgroundCol,blackBound,whiteBound,border)
 
     # Find x and y diamaters for small ellipse and large ellipse.
@@ -155,6 +160,12 @@ def binarize(img,white_or_black="black",blackBound=0.25,whiteBound=0.05,border=1
         final_image1 = recolour(img_edit4,mx,0,"<")
         final_image2 = recolour(img_edit4,0,mx,">")
         finalImage = [final_image1,final_image2]  
+
+    if white_or_black != "both":
+        allBlack = len(np.where(finalImage==0)[0])
+        propBlack = allBlack/(totx*toty)
+        if propBlack > 0.99:
+            finalImage = deepcopy(img)
 
     if saveImage == 1:
         if white_or_black == "both":
