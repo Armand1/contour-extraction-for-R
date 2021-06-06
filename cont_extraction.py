@@ -478,10 +478,16 @@ def get_curvature(x,y):
 #########################
 
 
-def load_resize_image(imgpath,resize=0.75):
+def load_resize_image(imgpath,resize=1):
     # Load original image.
     foo = Image.open((imgpath))
     p = foo.size 
+    # If a resize scale hasn't been set, then only resize really large images.
+    if (p[0] > 1000) and (resize == 1):
+        if p[0] > 3000:
+            resize = 0.6
+        else:
+            resize = 0.8
     # Resize image.
     # This saves on computation cost. If you don't wish to resize, then set resize=1.
     foo = foo.resize((int(p[0]*resize),int(p[1]*resize)),Image.ANTIALIAS)
