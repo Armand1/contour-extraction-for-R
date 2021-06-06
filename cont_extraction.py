@@ -330,6 +330,11 @@ def get_outline_contour(image,mp_x,mp_y,otsu=0,reparamPoints=1000,imgSaved=0):
 
         totx = np.shape(img)[1]
         toty = np.shape(img)[0]
+
+        mx = np.amax(img)
+
+        if len(np.where((img!=0)&(img!=mx))[0]) != 0:
+            otsu = 1
         
         if otsu == 1: # If additional binarization is required.
             thresh = threshold_otsu(img)
