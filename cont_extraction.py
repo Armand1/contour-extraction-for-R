@@ -52,134 +52,141 @@ def binarize(img,white_or_black="black",blackBound=0.2,whiteBound=0.15,border=20
     except:
         toty,totx = img.shape
 
-    # Find the background colour.
-    backgroundCol = np.average(img[5,:])
+    try:
 
-    # Find what value white is.
-    mx = 1 
-    if max([max(img[:,i]) for i in range(0,totx)]) > 100:
-        mx = 255 # Since sometimes the greyscale image will load with values between 0-255 instead of 0-1.
-        
-    # Find proposed measurements of boundary ellipse.
-    mp_x,mp_y,npoint,spoint,wpoint,epoint = ellipseMeasurements(img,0.125,ellipseLeeway,0.05)
+        # Find the background colour.
+        backgroundCol = np.average(img[5,:])
 
-    # Find y diamater of ellipse.
-    yDiam_smallEllipse = (spoint-npoint)+(toty*0.05)
+        # Find what value white is.
+        mx = 1 
+        if max([max(img[:,i]) for i in range(0,totx)]) > 100:
+            mx = 255 # Since sometimes the greyscale image will load with values between 0-255 instead of 0-1.
+            
+        # Find proposed measurements of boundary ellipse.
+        mp_x,mp_y,npoint,spoint,wpoint,epoint = ellipseMeasurements(img,0.125,ellipseLeeway,0.05)
 
-    # If y diamter is almost as large as the total image height, then we need a thinner border.
-    if yDiam_smallEllipse / toty > 0.76:
-        if yDiam_smallEllipse / toty > 0.95:
-            border = border+20
-        else:
-            border = border+10
+        # Find y diamater of ellipse.
+        yDiam_smallEllipse = (spoint-npoint)+(toty*0.05)
 
-    # Do initial image quantization based on bounds to turn pixels white/black.
-    prop,img_edit1 = init_step(img,mx,backgroundCol,blackBound,whiteBound,border)
+        # If y diamter is almost as large as the total image height, then we need a thinner border.
+        if yDiam_smallEllipse / toty > 0.76:
+            if yDiam_smallEllipse / toty > 0.95:
+                border = border+20
+            else:
+                border = border+10
 
-    # If at least almost half of the current image is black, then redo the initial edit.
-    if prop > 0.45:
-        if prop > 0.95:
-            mn_b = min(blackBound,whiteBound)
-            whiteBound = max(blackBound,whiteBound)
-            blackBound = mn_b
-        else:
-            blackBound = blackBound+0.1
+        # Do initial image quantization based on bounds to turn pixels white/black.
         prop,img_edit1 = init_step(img,mx,backgroundCol,blackBound,whiteBound,border)
 
-    # Find x and y diamaters for small ellipse and large ellipse.
-    xDiam_smallEllipse = (epoint-wpoint)+(totx*smallDiamLeeway)
-    yDiam_largeEllipse = (spoint-npoint)+(toty*largeDiamLeeway)
-    xDiam_largeEllipse = (epoint-wpoint)+(totx*largeDiamLeeway)
+        # If at least almost half of the current image is black, then redo the initial edit.
+        if prop > 0.45:
+            if prop > 0.95:
+                mn_b = min(blackBound,whiteBound)
+                whiteBound = max(blackBound,whiteBound)
+                blackBound = mn_b
+            else:
+                blackBound = blackBound+0.1
+            prop,img_edit1 = init_step(img,mx,backgroundCol,blackBound,whiteBound,border)
 
-    # Construct ellipsis.
-    x_smallEllipse, y_smallEllipse = get_ellipse(mp_x,mp_y,xDiam_smallEllipse,yDiam_smallEllipse)
-    x_largeEllipse, y_largeEllipse = get_ellipse(mp_x,mp_y,xDiam_largeEllipse,yDiam_largeEllipse)
+        # Find x and y diamaters for small ellipse and large ellipse.
+        xDiam_smallEllipse = (epoint-wpoint)+(totx*smallDiamLeeway)
+        yDiam_largeEllipse = (spoint-npoint)+(toty*largeDiamLeeway)
+        xDiam_largeEllipse = (epoint-wpoint)+(totx*largeDiamLeeway)
 
-    img_edit2 = deepcopy(img_edit1)
+        # Construct ellipsis.
+        x_smallEllipse, y_smallEllipse = get_ellipse(mp_x,mp_y,xDiam_smallEllipse,yDiam_smallEllipse)
+        x_largeEllipse, y_largeEllipse = get_ellipse(mp_x,mp_y,xDiam_largeEllipse,yDiam_largeEllipse)
 
-    # Turn all pixels outside of the large ellipse white.
-    yval_range = list(range(max(int(np.floor(min(y_largeEllipse))),0),min(int(np.ceil(max(y_largeEllipse)))+1,toty)))
-    img_edit2[:yval_range[0],:] = mx # All those with y values less than the min of the ellipse are outside of the ellipse.
-    img_edit2[yval_range[-1]+1:,:] = mx # All those with y values greater than the max of the ellipse are outside of the ellipse.
-    for i in yval_range: # Check the points that have a y value that falls within the y range of the ellipse.
-        vals = np.where(img_edit1[i,:]>-10)[0]
-        vals_change = [p for p in vals if in_ellipse(p,i,mp_x,mp_y,xDiam_largeEllipse,yDiam_largeEllipse) == 0]
-        img_edit2[i,vals_change] = mx
+        img_edit2 = deepcopy(img_edit1)
 
-    # Go through each y value within the range of the smaller ellipse.
-    # Find the min and max x positions that are black, for each y value. Then turn everything in between black.
-    # The aim here is to fill the object black.
-    yval_range = list(range(max(int(np.floor(min(y_smallEllipse))),0),min(int(np.ceil(max(y_smallEllipse)))+1,toty)))
-    for i in yval_range:
-        vals = np.where(img_edit2[i,:]==0)[0]
-        if len(vals) > 1:
-            vals_change = [p for p in vals if in_ellipse(p,i,mp_x,mp_y,xDiam_smallEllipse,yDiam_smallEllipse) == 1]
-            if len(vals_change) > 1:
-                img_edit2[i,vals_change[0]:vals_change[-1]+1] = 0 
-
-    # Create a new lower bound and turn everything greater than it to white.
-    notWhiteBlack = img_edit2[np.where((img_edit2!=0) & (img_edit2!=mx))]
-    lowerBound = np.average(notWhiteBlack)-np.std(notWhiteBlack)
-    img_edit3 = recolour(img_edit2,lowerBound,mx,">")
-
-    # In this next step we look at the neighbourhood of each pixel within a range. If the majority of the surrounding
-    # neighbourhood is white, we turn the pixel, along with a restricted neighbourhood, white.
-    notWhiteBlack = np.where((img_edit3!=0) & (img_edit3!=mx))
-    img_edit4 = deepcopy(img_edit3)
-    totalRange = len(notWhiteBlack[0])
-    for ind in range(0,totalRange):
-        i = notWhiteBlack[0][ind]
-        j = notWhiteBlack[1][ind]
-        vals = img_edit3[i-10:i+10,j-10:j+10].flatten()
-        if len(np.where(vals==mx)[0]) >= len(vals)*0.5:
-            img_edit4[i-2:i+2,j-2:j+2] = mx
-    
-    if extraFilter == 1:
-        # In this extra filter step, everything that is outside of the *small* ellipse that is
-        # *not* currently black, will be turned white.
-        yval_range = list(range(max(int(np.floor(min(y_smallEllipse))),0),min(int(np.ceil(max(y_smallEllipse)))+1,toty)))
-        img_edit5 = deepcopy(img_edit4)
+        # Turn all pixels outside of the large ellipse white.
+        yval_range = list(range(max(int(np.floor(min(y_largeEllipse))),0),min(int(np.ceil(max(y_largeEllipse)))+1,toty)))
+        img_edit2[:yval_range[0],:] = mx # All those with y values less than the min of the ellipse are outside of the ellipse.
+        img_edit2[yval_range[-1]+1:,:] = mx # All those with y values greater than the max of the ellipse are outside of the ellipse.
         for i in yval_range: # Check the points that have a y value that falls within the y range of the ellipse.
-            vals = np.where(img_edit4[i,:]>0)[0]
-            vals_change = [p for p in vals if in_ellipse(p,i,mp_x,mp_y,xDiam_smallEllipse,yDiam_smallEllipse) == 0]
-            img_edit5[i,vals_change] = 1
-    else:
-        img_edit5 = deepcopy(img_edit4)
+            vals = np.where(img_edit1[i,:]>-10)[0]
+            vals_change = [p for p in vals if in_ellipse(p,i,mp_x,mp_y,xDiam_largeEllipse,yDiam_largeEllipse) == 0]
+            img_edit2[i,vals_change] = mx
 
-    # In this final step, we turn all the remaining points to either black or white.    
-    # If the variable white_or_black == "white", then all points that are *not* black, will be turned white. 
-    # If the variable white_or_black == "black", then all points that are *not* white, will be turned black. 
-    # If the variable white_or_black == "both", we provide both the "white" and "black" versions. 
-    # The "both" option will result in the output being a list of two images. 
+        # Go through each y value within the range of the smaller ellipse.
+        # Find the min and max x positions that are black, for each y value. Then turn everything in between black.
+        # The aim here is to fill the object black.
+        yval_range = list(range(max(int(np.floor(min(y_smallEllipse))),0),min(int(np.ceil(max(y_smallEllipse)))+1,toty)))
+        for i in yval_range:
+            vals = np.where(img_edit2[i,:]==0)[0]
+            if len(vals) > 1:
+                vals_change = [p for p in vals if in_ellipse(p,i,mp_x,mp_y,xDiam_smallEllipse,yDiam_smallEllipse) == 1]
+                if len(vals_change) > 1:
+                    img_edit2[i,vals_change[0]:vals_change[-1]+1] = 0 
+
+        # Create a new lower bound and turn everything greater than it to white.
+        notWhiteBlack = img_edit2[np.where((img_edit2!=0) & (img_edit2!=mx))]
+        lowerBound = np.average(notWhiteBlack)-np.std(notWhiteBlack)
+        img_edit3 = recolour(img_edit2,lowerBound,mx,">")
+
+        # In this next step we look at the neighbourhood of each pixel within a range. If the majority of the surrounding
+        # neighbourhood is white, we turn the pixel, along with a restricted neighbourhood, white.
+        notWhiteBlack = np.where((img_edit3!=0) & (img_edit3!=mx))
+        img_edit4 = deepcopy(img_edit3)
+        totalRange = len(notWhiteBlack[0])
+        for ind in range(0,totalRange):
+            i = notWhiteBlack[0][ind]
+            j = notWhiteBlack[1][ind]
+            vals = img_edit3[i-10:i+10,j-10:j+10].flatten()
+            if len(np.where(vals==mx)[0]) >= len(vals)*0.5:
+                img_edit4[i-2:i+2,j-2:j+2] = mx
         
-    if white_or_black == "black":
-        finalImage = recolour(img_edit4,mx,0,"<")
-    if white_or_black == "white":
-        finalImage = recolour(img_edit4,0,mx,">")
-    if white_or_black == "both":
-        final_image1 = recolour(img_edit4,mx,0,"<")
-        final_image2 = recolour(img_edit4,0,mx,">")
-        finalImage = [final_image1,final_image2]  
-
-    if white_or_black != "both":
-        allBlack = len(np.where(finalImage==0)[0])
-        propBlack = allBlack/(totx*toty)
-        if propBlack > 0.99:
-            finalImage = deepcopy(img)
-
-    if saveImage == 1:
-        if white_or_black == "both":
-            mpimg.imsave("binimg1.png", final_image1)
-            mpimg.imsave("binimg2.png", final_image2)
+        if extraFilter == 1:
+            # In this extra filter step, everything that is outside of the *small* ellipse that is
+            # *not* currently black, will be turned white.
+            yval_range = list(range(max(int(np.floor(min(y_smallEllipse))),0),min(int(np.ceil(max(y_smallEllipse)))+1,toty)))
+            img_edit5 = deepcopy(img_edit4)
+            for i in yval_range: # Check the points that have a y value that falls within the y range of the ellipse.
+                vals = np.where(img_edit4[i,:]>0)[0]
+                vals_change = [p for p in vals if in_ellipse(p,i,mp_x,mp_y,xDiam_smallEllipse,yDiam_smallEllipse) == 0]
+                img_edit5[i,vals_change] = 1
         else:
-            mpimg.imsave("binimg.png", finalImage)
-    
-    if allImages == 1:
-        finalImage = list(finalImage)
-        finalImage.append(img_edit1)
-        finalImage.append(img_edit2)
-        finalImage.append(img_edit3)
-        finalImage.append(img_edit4)
+            img_edit5 = deepcopy(img_edit4)
+
+        # In this final step, we turn all the remaining points to either black or white.    
+        # If the variable white_or_black == "white", then all points that are *not* black, will be turned white. 
+        # If the variable white_or_black == "black", then all points that are *not* white, will be turned black. 
+        # If the variable white_or_black == "both", we provide both the "white" and "black" versions. 
+        # The "both" option will result in the output being a list of two images. 
+            
+        if white_or_black == "black":
+            finalImage = recolour(img_edit4,mx,0,"<")
+        if white_or_black == "white":
+            finalImage = recolour(img_edit4,0,mx,">")
+        if white_or_black == "both":
+            final_image1 = recolour(img_edit4,mx,0,"<")
+            final_image2 = recolour(img_edit4,0,mx,">")
+            finalImage = [final_image1,final_image2]  
+
+        if white_or_black != "both":
+            allBlack = len(np.where(finalImage==0)[0])
+            propBlack = allBlack/(totx*toty)
+            if propBlack > 0.99:
+                finalImage = deepcopy(img)
+
+        if saveImage == 1:
+            if white_or_black == "both":
+                mpimg.imsave("binimg1.png", final_image1)
+                mpimg.imsave("binimg2.png", final_image2)
+            else:
+                mpimg.imsave("binimg.png", finalImage)
+        
+        if allImages == 1:
+            finalImage = list(finalImage)
+            finalImage.append(img_edit1)
+            finalImage.append(img_edit2)
+            finalImage.append(img_edit3)
+            finalImage.append(img_edit4)
+
+    except:
+        finalImage = deepcopy(img)
+        mp_x = totx/2
+        mp_y = toty/2
 
     return mp_x,mp_y,finalImage
 
