@@ -35,6 +35,9 @@ from skimage import transform
 from skimage import color
 from PIL import Image
 import matplotlib.image as mpimg
+from skimage.filters import gaussian
+from skimage.segmentation import active_contour
+
 
 
 
@@ -493,16 +496,14 @@ def get_curvature(x,y):
 #########################
 
 
-def load_resize_image(imgpath,resize=1):
+def load_resize_image(imgpath,resize=1,resizeExtraScale1=0.8,resizeExtraScale2=0.55,large=1000,extraLarge=3000):
     # Load original image.
     foo = Image.open((imgpath))
     p = foo.size 
-    # If a resize scale hasn't been set, then only resize really large images.
-    if (p[0] > 1000) and (resize == 1):
-        if p[0] > 3000:
-            resize = 0.6
-        else:
-            resize = 0.8
+    if p[0] > extraLarge:
+        resize = resize*resizeExtraScale2
+    elif p[0] > large:
+        resize = resize*resizeExtraScale1
     # Resize image.
     # This saves on computation cost. If you don't wish to resize, then set resize=1.
     foo = foo.resize((int(p[0]*resize),int(p[1]*resize)),Image.ANTIALIAS)
@@ -530,9 +531,8 @@ def choose_contour(x1,y1,x2,y2,reparamTestPoints=500):
         yr = deepcopy(y2)
     return xr,yr
 
-def snakeSmooth(imgpath,x,y,gauss=True,grey=True,alpha=0.01, beta=0.1, w_line=0, w_edge=1, gamma=0.01, max_px_move=1.0, max_iterations=500, convergence=0.1, boundary_condition='periodic', coordinates='rc'):
-    img = io.imread(imgpath,as_gray=grey)
-    init = np.array([x,y]).T
+def snakeSmooth(img,x,y,gauss=True,grey=True,alpha=0.01, beta=3, w_line=0, w_edge=1, gamma=0.01, max_px_move=1.0, max_iterations=5, convergence=0.1, boundary_condition='periodic', coordinates='rc'):
+    init = np.array([x[0],y[0]]).T
     if gauss==True:
         image = gaussian(img,3)
     else:
