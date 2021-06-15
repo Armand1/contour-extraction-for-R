@@ -13,6 +13,8 @@ import collections
 import cv2 as cv
 from scipy import interpolate
 from scipy.interpolate import interp1d 
+from joblib import Parallel, delayed
+
 
 ##########################################################################################
 
@@ -53,7 +55,7 @@ class fdacurve:
     Date   :  26-Aug-2020
     """
 
-    def __init__(self, beta1, mode='O', scale=True):
+    def __init__(self, beta1, mode='O', scale=False):
         """
         fdacurve Construct an instance of this class
         :param beta: (n,T,K) matrix defining n dimensional curve on T samples with K curves
@@ -71,7 +73,7 @@ class fdacurve:
         for ii in range(0,K):
             a = -cf.calculatecentroid(beta1[:,:,ii])
             beta1[:,:,ii] += tile(a, (N,1)).T
-            q[:,:,ii] = cf.curve_to_q(beta1[:,:,ii])[0]
+            q[:,:,ii] = cf.curve_to_q(beta1[:,:,ii], self.scale, self.mode)
 
         self.q = q
         self.beta = beta1
@@ -125,13 +127,12 @@ class fdacurve:
             sumv = zeros((n, T))
             sumd[0] = inf
             sumd[itr+1] = 0
-          #  out = Parallel(n_jobs=cores)(delayed(karcher_calc)(self.beta[:, :, n],self.q[:, :, n], betamean, mu, self.basis, mode, method) for n in range(N))
+            out = Parallel(n_jobs=cores)(delayed(karcher_calc)(self.beta[:, :, n],
+                                    self.q[:, :, n], betamean, mu, self.basis, mode, method) for n in range(N))
             v = zeros((n, T, N))
             for i in range(0, N):
-                out_i = karcher_calc(self.beta[:, :, i],self.q[:, :, i], betamean, mu, self.basis, mode, method)
-                v[:, :, i] = out_i[0]
-                sumd[itr+1] = sumd[itr+1] + out_i[1]**2
-
+                v[:, :, i] = out[i][0]
+                sumd[itr+1] = sumd[itr+1] + out[i][1]**2
 
             sumv = v.sum(axis=2)
 
@@ -153,7 +154,6 @@ class fdacurve:
                 betamean = x + tile(a, [T, 1]).T
             else:
                 break
-
             itr += 1
 
         self.q_mean = mu
@@ -196,16 +196,15 @@ class fdacurve:
         q_mu = cf.curve_to_q(self.beta_mean)
         # align to mean
 
-        # out = Parallel(n_jobs=-1)(delayed(cf.find_rotation_and_seed_coord)(self.beta_mean,
-        #     self.beta[:, :, n], mode, method) for n in range(N))
+        out = Parallel(n_jobs=-1)(delayed(cf.find_rotation_and_seed_coord)(self.beta_mean,
+                                  self.beta[:, :, n], mode, method) for n in range(N))
+        
         for ii in range(0, N):
-            out_i = cf.find_rotation_and_seed_coord(self.beta_mean,self.beta[:, :, ii], mode, method)
-            self.gams[:,ii] = out_i[ii][3]
-            self.qn[:, :, ii] = out_i[ii][1]
-            self.betan[:, :, ii] = out_i[ii][0]
+            self.gams[:,ii] = out[ii][3]
+            self.qn[:, :, ii] = out[ii][1]
+            self.betan[:, :, ii] = out[ii][0]
 
         return
-
 
 def karcher_calc(beta, q, betamean, mu, basis, closed, method):
     # Compute shooting vector from mu to q_i
@@ -467,6 +466,12 @@ def rescale(x,y,scaledHeightWidth=3,scaleDirection="both"):
     # scaleDirection paramter to "height" or "width" respectively.
     # Input: x, y coordinates, desired max height/width, and desired direction (height/width/max)
     # Output: rescaled x and y coordinates.
+
+    if type(x) != np.ndarray:
+        x = np.array(x)
+        
+    if type(y) != np.ndarray:
+        y = np.array(y) 
     
     if scaleDirection == "height":
         p = max(y)-min(y)
@@ -527,7 +532,7 @@ def symmetrize(x,y,sideReparamPoints=200,rep=0,KarcherMeanScale=True,cutEnds=Tru
         xLr = deepcopy(xRr)
         yLr = deepcopy(yRr)
 
-    curves = np.zeros((2,200,2))
+    curves = np.zeros((2,sideReparamPoints,2))
     curves[0,:,0] = yLr
     curves[1,:,0] = xLr
     curves[0,:,1] = yRr
@@ -582,7 +587,7 @@ def symmetrize(x,y,sideReparamPoints=200,rep=0,KarcherMeanScale=True,cutEnds=Tru
 def reorderPoints(x,y,rotate=True,reorder=True,scaledHeightWidth=3,direction="clockwise"):
     # 1) Rotate the object by 180 degrees, if desired.
     if rotate==True:
-        x,y = rescale_shell(x,-1*y)
+        x,y = rescale(x,-1*y)
     # 2) Make the points go in the desired direction. Default is "clockwise".
     mp = min(x)+(max(x)-min(x))/2
     rng = np.where(np.array(y)>1)[0]

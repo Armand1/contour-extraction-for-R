@@ -531,8 +531,11 @@ def choose_contour(x1,y1,x2,y2,reparamTestPoints=500):
         yr = deepcopy(y2)
     return xr,yr
 
-def snakeSmooth(img,x,y,gauss=True,grey=True,alpha=0.01, beta=3, w_line=0, w_edge=1, gamma=0.01, max_px_move=1.0, max_iterations=5, convergence=0.1, boundary_condition='periodic', coordinates='rc'):
-    init = np.array([x[0],y[0]]).T
+def snakeSmooth(img,x,y,py_or_R = "py",gauss=True,grey=True,alpha=0.01, beta=3, w_line=0, w_edge=1, gamma=0.01, max_px_move=1.0, max_iterations=5, convergence=0.1, boundary_condition='periodic', coordinates='rc'):
+    if py_or_R == "py":
+        init = np.array([x,y]).T
+    else:
+        init = np.array([x[0],y[0]]).T
     if gauss==True:
         image = gaussian(img,3)
     else:
