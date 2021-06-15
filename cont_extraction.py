@@ -541,5 +541,3 @@ def snakeSmooth(img,x,y,gauss=True,grey=True,alpha=0.01, beta=3, w_line=0, w_edg
     , convergence=convergence, boundary_condition=boundary_condition, coordinates=coordinates)
 
     return snake[:,0],snake[:,1]
-
-

@@ -614,3 +614,55 @@ def reorderPoints(x,y,rotate=True,reorder=True,scaledHeightWidth=3,direction="cl
         newy = deepcopy(y)
 
     return newx,newy
+
+def procrustes(F1, F2,scaling=True,rotation=True,reflection=True):
+    # Procrustes alignment
+
+    # Translate
+    muF1 = F1.mean(axis=0)
+    muF2 = F2.mean(axis=0)
+
+    F1_0 = F1 - muF1
+    F2_0 = F2 - muF2
+
+    n,m = F1.shape
+    ny,my = F2.shape
+
+    # Scaling
+    sF1 = np.sum(F1_0**2)
+    sF2 = np.sum(F2_0**2)
+
+    F1_0 /= np.sqrt(sF1)
+    F2_0 /= np.sqrt(sF2)
+
+    # Rotation
+    P = np.dot(F1_0.T, F2_0)
+    U,s,V = np.linalg.svd(P)
+    V = V.T
+    R = np.dot(V, U.T)
+
+    # Reflection
+    if not reflection:
+        if np.linalg.det(V.T) < 0:
+            V[:,-1] = -V[:,-1]
+            s[-1] = -s[:1]
+            R = np.dot(V, U.T)
+
+    if not rotation:
+        R = np.eye(np.shape(R)[0])
+
+    if scaling:
+        b = np.sum(s) * np.sqrt(sF1)/np.sqrt(sF2)
+        # residual
+        r = 1 - np.sum(s)**2
+        # transformed coords
+        Z = np.sqrt(sF1)*np.sum(s)*np.dot(F2_0, R) + muF1
+    else:
+        b = 1
+        # residual
+        r = 1 + sF2/sF1 - 2 * np.sum(s) * np.sqrt(sY) / np.sqrt(sF1)
+        # transformed coords
+        Z = np.sqrt(sF2)*np.dot(F2_0, R) + muF1
+
+    # return residual, transformed coords, rotation, scale, translation
+    return r, Z, R, b, muF1 - b*np.dot(muF2,R)
