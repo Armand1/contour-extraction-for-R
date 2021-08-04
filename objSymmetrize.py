@@ -87,7 +87,10 @@ class fdacurve:
         for ii in range(0, K):
             a = -cf.calculatecentroid(beta1[:, :, ii])
             beta1[:, :, ii] += tile(a, (N, 1)).T
-            q[:, :, ii] = cf.curve_to_q(beta1[:, :, ii], self.scale, self.mode)
+            try:
+                q[:, :, ii] = cf.curve_to_q(beta1[:, :, ii], self.scale, self.mode)
+            except:
+                q[:, :, ii] = cf.curve_to_q(beta1[:, :, ii], self.mode)[0]
 
         self.q = q
         self.beta = beta1
